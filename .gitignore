@@ -1,0 +1,9 @@
+build/
+creader
+nvreader
+*.o
+*.d
+*.log
+*.tmp
+.cache/
+.DS_Store
