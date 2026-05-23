@@ -16,6 +16,39 @@
 #define WIN_H        800
 #define FPS          60
 
+static int clamp_page_index(int page, int page_count)
+{
+    if (page < 0) return 0;
+    if (page >= page_count) return page_count > 0 ? page_count - 1 : 0;
+    return page;
+}
+
+static int estimate_page_height(PDFDoc *doc, const AppState *s)
+{
+    int pw = 0, ph = 0;
+    if (doc && s->page_count > 0)
+        pdf_get_page_size(doc, clamp_page_index(s->current_page, s->page_count),
+                          s->zoom, s->rotation, &pw, &ph);
+    (void)pw;
+    if (ph <= 0)
+        ph = s->window_height - STATUS_H - READER_PAGE_MARGIN * 2;
+    if (ph < 100) ph = 100;
+    return ph;
+}
+
+static int continuous_max_scroll(const AppState *s, const int *page_h, int count)
+{
+    if (!page_h || count <= 0) return 0;
+    long long total_h = (long long)READER_PAGE_MARGIN * 2;
+    for (int i = 0; i < count; i++)
+        total_h += page_h[i] + READER_PAGE_GAP;
+    total_h -= READER_PAGE_GAP;
+    long long max_scroll = total_h - (s->window_height - STATUS_H);
+    if (max_scroll < 0) return 0;
+    if (max_scroll > 0x7fffffffLL) return 0x7fffffff;
+    return (int)max_scroll;
+}
+
 /* Compute fit-to-width zoom for the document viewport. */
 static float fit_zoom(int page_w_pts, int page_h_pts,
                       int win_w, int win_h)
@@ -225,6 +258,19 @@ int main(int argc, char *argv[])
                     cache_rotation = state.rotation;
                     cache_first = -1;
                     cache_last = -1;
+                    if (page_w && page_h) {
+                        int est_w = 0;
+                        int est_h = estimate_page_height(doc, &state);
+                        pdf_get_page_size(doc, clamp_page_index(state.current_page, state.page_count),
+                                          state.zoom, state.rotation, &est_w, &est_h);
+                        if (est_w <= 0) est_w = state.window_width - READER_SIDEBAR_W - STATUS_W - 80;
+                        if (est_w < 100) est_w = 100;
+                        if (est_h < 100) est_h = estimate_page_height(doc, &state);
+                        for (int i = 0; i < cached_pages; i++) {
+                            page_w[i] = est_w;
+                            page_h[i] = est_h;
+                        }
+                    }
                 }
 
                 if (pages && page_w && page_h) {
@@ -247,12 +293,15 @@ int main(int argc, char *argv[])
                         }
                     }
 
-                    for (int i = 0; i < cached_pages; i++) {
-                        if (rebuild_cache || page_w[i] <= 0 || page_h[i] <= 0) {
+                    for (int i = cache_first; i <= cache_last && i < cached_pages; i++) {
+                        if (i < 0) continue;
+                        if (page_w[i] <= 0 || page_h[i] <= 0) {
                             pdf_get_page_size(doc, i, state.zoom, state.rotation,
                                               &page_w[i], &page_h[i]);
                         }
+                    }
 
+                    for (int i = 0; i < cached_pages; i++) {
                         if (i < cache_first || i > cache_last) {
                             if (pages[i]) {
                                 SDL_DestroyTexture(pages[i]);
@@ -316,14 +365,7 @@ int main(int argc, char *argv[])
         /* Clamp scroll so we can't scroll past page bottom */
         if (state.view_mode == MODE_SINGLE_PAGE &&
             cached_pages > 0 && pages && page_w && page_h) {
-            int visible = state.window_height - STATUS_H;
-            int total_h = READER_PAGE_MARGIN;
-            for (int i = 0; i < cached_pages; i++)
-                total_h += page_h[i] + READER_PAGE_GAP;
-            total_h -= READER_PAGE_GAP;
-            total_h += READER_PAGE_MARGIN;
-            int max_scroll = total_h - visible;
-            if (max_scroll < 0) max_scroll = 0;
+            int max_scroll = continuous_max_scroll(&state, page_h, cached_pages);
             if (state.scroll_y > max_scroll) state.scroll_y = max_scroll;
             if (state.scroll_y < 0)          state.scroll_y = 0;
         } else if (t1h > 0) {

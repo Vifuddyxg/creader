@@ -1,10 +1,10 @@
-CC      = gcc
+CC     ?= cc
 TARGET  = creader
 SRCDIR  = src
 INCDIR  = include
 BUILDDIR = build
 PREFIX ?= /usr/local
-APPDIR ?= $(HOME)/.local/share/applications
+APPDIR ?= $(PREFIX)/share/applications
 
 SRCS = $(wildcard $(SRCDIR)/*.c)
 OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SRCS))
@@ -64,12 +64,9 @@ clean:
 	rm -rf $(BUILDDIR) $(TARGET)
 
 install: $(TARGET)
-	install -Dm755 $(TARGET) $(DESTDIR)$(PREFIX)/bin/$(TARGET)
-
-install-desktop: install install-menu
-
-install-menu:
-	mkdir -p "$(APPDIR)"
+	mkdir -p "$(DESTDIR)$(PREFIX)/bin"
+	mkdir -p "$(DESTDIR)$(APPDIR)"
+	install -m 755 $(TARGET) "$(DESTDIR)$(PREFIX)/bin/$(TARGET)"
 	printf '%s\n' \
 		'[Desktop Entry]' \
 		'Type=Application' \
@@ -80,14 +77,33 @@ install-menu:
 		'Categories=Office;Viewer;Graphics;' \
 		'MimeType=application/pdf;application/epub+zip;application/vnd.comicbook+zip;application/vnd.comicbook-rar;' \
 		'StartupNotify=true' \
-		> "$(APPDIR)/$(TARGET).desktop"
-	update-desktop-database "$(APPDIR)" 2>/dev/null || true
+		> "$(DESTDIR)$(APPDIR)/$(TARGET).desktop"
+	update-desktop-database "$(DESTDIR)$(APPDIR)" 2>/dev/null || true
+	@echo "Installed $(TARGET) to $(DESTDIR)$(PREFIX)/bin/$(TARGET)"
+	@echo "Installed desktop launcher to $(DESTDIR)$(APPDIR)/$(TARGET).desktop"
+
+install-desktop: install
+
+install-menu:
+	mkdir -p "$(DESTDIR)$(APPDIR)"
+	printf '%s\n' \
+		'[Desktop Entry]' \
+		'Type=Application' \
+		'Name=creader' \
+		'Comment=PDF and comic reader' \
+		'Exec=$(PREFIX)/bin/$(TARGET) %f' \
+		'Terminal=false' \
+		'Categories=Office;Viewer;Graphics;' \
+		'MimeType=application/pdf;application/epub+zip;application/vnd.comicbook+zip;application/vnd.comicbook-rar;' \
+		'StartupNotify=true' \
+		> "$(DESTDIR)$(APPDIR)/$(TARGET).desktop"
+	update-desktop-database "$(DESTDIR)$(APPDIR)" 2>/dev/null || true
 	xdg-mime default "$(TARGET).desktop" application/pdf 2>/dev/null || true
-	@echo "Desktop launcher installed: $(APPDIR)/$(TARGET).desktop"
+	@echo "Desktop launcher installed: $(DESTDIR)$(APPDIR)/$(TARGET).desktop"
 
 uninstall-desktop:
-	rm -f "$(APPDIR)/$(TARGET).desktop"
-	update-desktop-database "$(APPDIR)" 2>/dev/null || true
+	rm -f "$(DESTDIR)$(APPDIR)/$(TARGET).desktop"
+	update-desktop-database "$(DESTDIR)$(APPDIR)" 2>/dev/null || true
 	@echo "Desktop launcher removed."
 
 # ---- Dependency generation ------------------------------------------------

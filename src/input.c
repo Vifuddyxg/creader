@@ -101,24 +101,38 @@ static int reader_visible_h(const AppState *s)
     return h < 1 ? 1 : h;
 }
 
+static int reader_estimated_page_h(InputCtx *ctx)
+{
+    AppState *s = ctx->state;
+    int pw = 0, ph = 0;
+    if (*ctx->doc && s->page_count > 0) {
+        int page = s->current_page;
+        if (page < 0) page = 0;
+        if (page >= s->page_count) page = s->page_count - 1;
+        pdf_get_page_size(*ctx->doc, page, s->zoom, s->rotation, &pw, &ph);
+    }
+    (void)pw;
+    if (ph <= 0)
+        ph = reader_visible_h(s) - READER_PAGE_MARGIN * 2;
+    if (ph < 100) ph = 100;
+    return ph;
+}
+
 static int reader_max_scroll(InputCtx *ctx)
 {
     AppState *s = ctx->state;
     if (!*ctx->doc) return 0;
 
     if (s->view_mode == MODE_SINGLE_PAGE) {
-        int total_h = READER_PAGE_MARGIN;
-        for (int i = 0; i < s->page_count; i++) {
-            int pw = 0, ph = 0;
-            pdf_get_page_size(*ctx->doc, i, s->zoom, s->rotation, &pw, &ph);
-            (void)pw;
-            total_h += ph + READER_PAGE_GAP;
-        }
-        if (s->page_count > 0) total_h -= READER_PAGE_GAP;
-        total_h += READER_PAGE_MARGIN;
-
-        int max_scroll = total_h - reader_visible_h(s);
-        return max_scroll > 0 ? max_scroll : 0;
+        int est_h = reader_estimated_page_h(ctx);
+        long long total_h = (long long)READER_PAGE_MARGIN * 2;
+        if (s->page_count > 0)
+            total_h += (long long)s->page_count * est_h +
+                       (long long)(s->page_count - 1) * READER_PAGE_GAP;
+        long long max_scroll = total_h - reader_visible_h(s);
+        if (max_scroll < 0) return 0;
+        if (max_scroll > 0x7fffffffLL) return 0x7fffffff;
+        return (int)max_scroll;
     }
 
     int pw1 = 0, ph1 = 0, pw2 = 0, ph2 = 0;
@@ -138,23 +152,12 @@ static void reader_update_current_page(InputCtx *ctx)
     AppState *s = ctx->state;
     if (!*ctx->doc || s->view_mode != MODE_SINGLE_PAGE) return;
 
-    int viewport_mid = s->scroll_y + reader_visible_h(s) / 2;
-    int y = READER_PAGE_MARGIN;
-    int best_page = s->current_page;
-    int best_dist = 0x7fffffff;
-
-    for (int i = 0; i < s->page_count; i++) {
-        int pw = 0, ph = 0;
-        pdf_get_page_size(*ctx->doc, i, s->zoom, s->rotation, &pw, &ph);
-        (void)pw;
-        int page_mid = y + ph / 2;
-        int dist = abs(page_mid - viewport_mid);
-        if (dist < best_dist) {
-            best_dist = dist;
-            best_page = i;
-        }
-        y += ph + READER_PAGE_GAP;
-    }
+    int stride = reader_estimated_page_h(ctx) + READER_PAGE_GAP;
+    if (stride <= 0) return;
+    int viewport_mid = s->scroll_y + reader_visible_h(s) / 2 - READER_PAGE_MARGIN;
+    int best_page = viewport_mid / stride;
+    if (best_page < 0) best_page = 0;
+    if (best_page >= s->page_count) best_page = s->page_count - 1;
 
     if (best_page != s->current_page) {
         s->current_page = best_page;
@@ -216,12 +219,7 @@ static void set_page_from_mouse(InputCtx *ctx, int y)
     s->current_page = page;
     s->scroll_y = 0;
     if (s->view_mode == MODE_SINGLE_PAGE && *ctx->doc) {
-        for (int i = 0; i < page; i++) {
-            int pw = 0, ph = 0;
-            pdf_get_page_size(*ctx->doc, i, s->zoom, s->rotation, &pw, &ph);
-            (void)pw;
-            s->scroll_y += ph + READER_PAGE_GAP;
-        }
+        s->scroll_y = page * (reader_estimated_page_h(ctx) + READER_PAGE_GAP);
     }
     ctx->page_dirty = true;
     sync_progress(ctx);

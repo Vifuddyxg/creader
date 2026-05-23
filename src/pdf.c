@@ -2,7 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdbool.h>
 #include "pdf.h"
+
+#define PDF_MAX_RENDER_PIXELS 50000000
+#define PDF_MAX_RENDER_SIDE   16384
 
 PDFDoc *pdf_open(const char *path)
 {
@@ -111,20 +115,31 @@ SDL_Texture *pdf_render_page(PDFDoc *d, SDL_Renderer *r,
         fz_rect bounds = fz_bound_page(d->ctx, page);
         fz_irect  irect;
         fz_matrix ctm  = page_ctm(bounds, zoom, rotation, &irect);
+        int rw = irect.x1 - irect.x0;
+        int rh = irect.y1 - irect.y0;
+        if (out_w) *out_w = rw;
+        if (out_h) *out_h = rh;
+        bool too_large = rw <= 0 || rh <= 0 ||
+            rw > PDF_MAX_RENDER_SIDE || rh > PDF_MAX_RENDER_SIDE ||
+            (long long)rw * (long long)rh > PDF_MAX_RENDER_PIXELS;
+        if (too_large) {
+            fprintf(stderr, "pdf_render_page %d: page too large to render safely (%dx%d)\n",
+                    page_idx, rw, rh);
+        } else {
+            pix = fz_new_pixmap_with_bbox(d->ctx, fz_device_rgb(d->ctx), irect, NULL, 0);
+            fz_clear_pixmap_with_value(d->ctx, pix, 255);
 
-        pix = fz_new_pixmap_with_bbox(d->ctx, fz_device_rgb(d->ctx), irect, NULL, 0);
-        fz_clear_pixmap_with_value(d->ctx, pix, 255);
+            dev = fz_new_draw_device(d->ctx, fz_identity, pix);
+            fz_run_page(d->ctx, page, dev, ctm, NULL);
+            fz_close_device(d->ctx, dev);
+            fz_drop_device(d->ctx, dev);
+            dev = NULL;
 
-        dev = fz_new_draw_device(d->ctx, fz_identity, pix);
-        fz_run_page(d->ctx, page, dev, ctm, NULL);
-        fz_close_device(d->ctx, dev);
-        fz_drop_device(d->ctx, dev);
-        dev = NULL;
+            if (out_w) *out_w = pix->w;
+            if (out_h) *out_h = pix->h;
 
-        if (out_w) *out_w = pix->w;
-        if (out_h) *out_h = pix->h;
-
-        tex = pixmap_to_texture(r, pix);
+            tex = pixmap_to_texture(r, pix);
+        }
     }
     fz_always(d->ctx) {
         if (dev) { fz_close_device(d->ctx, dev); fz_drop_device(d->ctx, dev); }

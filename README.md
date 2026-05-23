@@ -1,174 +1,161 @@
 # creader
 
-Small Linux-first PDF/comic reader written in C with SDL2 and MuPDF.
+`creader` is a small PDF, comic, and document reader for Unix-like systems,
+written in C with SDL2 and MuPDF. It opens into a visual library, remembers
+reading progress, and keeps the reader interface compact for keyboard and mouse
+use.
 
-creader is experimental but usable for daily reading. It focuses on a fast
-library view, keyboard navigation, continuous scrolling, and a compact reader UI.
+Supported formats depend on your local MuPDF build, but typically include PDF,
+EPUB, CBZ, and CBR.
 
 ## Features
 
-- Dark modern UI with card-based library view
-- Continuous single-page scrolling and two-page book mode
-- Zoom in/out, page rotation, page slider
-- Auto-saves reading progress per file
-- Library with thumbnails, categories, search, add/remove files
-- Resizable window, fullscreen support
+- Dark SDL2 interface with a card-based library
+- Continuous single-page scrolling with nearby-page caching
+- Two-page book mode
+- Zoom, rotation, page slider, fullscreen mode
+- File and folder import from the library
+- Thumbnail generation for library items
+- Search and keyboard navigation
+- Reading progress saved per document
+- Desktop launcher for application menus and `drun`
 
 ## Dependencies
 
-| Library      | Package (Arch)          | Package (Debian/Ubuntu)       |
-|-------------|-------------------------|-------------------------------|
-| SDL2        | `sdl2`                  | `libsdl2-dev`                 |
-| SDL2_ttf    | `sdl2_ttf`              | `libsdl2-ttf-dev`             |
-| MuPDF       | `mupdf-gl` / `mupdf`    | `libmupdf-dev`                |
+- C compiler
+- `make` on Linux, `gmake` on FreeBSD/OpenBSD
+- `pkg-config` / `pkgconf`
+- SDL2
+- SDL2_ttf
+- MuPDF development headers and library
+- `zenity` or `kdialog` for optional graphical file/folder pickers
 
-### Arch Linux
-```bash
-sudo pacman -S sdl2 sdl2_ttf mupdf-gl
-```
+Examples:
 
-### Debian / Ubuntu
-```bash
-sudo apt install libsdl2-dev libsdl2-ttf-dev libmupdf-dev
-```
+- Arch Linux / Artix Linux: `sudo pacman -S --needed git base-devel pkgconf sdl2 sdl2_ttf mupdf zenity`
+- Debian / Ubuntu: `sudo apt install git build-essential pkg-config libsdl2-dev libsdl2-ttf-dev libmupdf-dev zenity`
+- Fedora: `sudo dnf install git gcc make pkgconf-pkg-config SDL2-devel SDL2_ttf-devel mupdf-devel zenity`
+- openSUSE: `sudo zypper install git gcc make pkg-config libSDL2-devel SDL2_ttf-devel mupdf-devel zenity`
+- Gentoo: `sudo emerge --ask dev-vcs/git sys-devel/gcc sys-devel/make virtual/pkgconfig media-libs/libsdl2 media-libs/sdl2-ttf app-text/mupdf gnome-extra/zenity`
+- Alpine: `sudo apk add git build-base pkgconf sdl2-dev sdl2_ttf-dev mupdf-dev zenity`
+- FreeBSD: `doas pkg install git gmake pkgconf sdl2 sdl2_ttf mupdf zenity`
+- OpenBSD: `doas pkg_add git gmake pkgconf sdl2 sdl2-ttf mupdf zenity`
 
-### Gentoo
-```bash
-sudo emerge media-libs/libsdl2 media-libs/sdl2-ttf app-text/mupdf
-```
+Install a common sans font if the UI text does not appear. DejaVu Sans, Noto
+Sans, and Liberation Sans are detected from common system paths.
 
-> **Note on fonts:** creader searches for DejaVu Sans, Noto Sans, or Liberation Sans in
-> standard system font paths. Install any of them for text UI. On most distros they are
-> already present (`ttf-dejavu` / `fonts-dejavu`).
+## Build And Install
 
-## Build
+Linux:
 
-```bash
+```sh
+git clone https://github.com/Vifuddyxg/creader
 cd creader
 make
-```
-
-The binary is placed at `./creader`.
-
-```bash
-sudo make install     # installs to /usr/local/bin/creader
-make clean            # remove build artefacts
-```
-
-## Add to Applications Menu
-
-To open creader like Firefox or other desktop apps, install the binary and add a
-desktop launcher.
-
-```bash
-make
 sudo make install
-make install-menu
 ```
 
-This installs the binary to `/usr/local/bin/creader`, then creates
-`~/.local/share/applications/creader.desktop`, refreshes the applications menu,
-and sets creader as the default PDF app when `xdg-mime` is available.
+FreeBSD/OpenBSD:
 
-Do not run `make install-menu` with `sudo`; it should install the launcher for
-your normal user so tools like `rofi -show drun` can find it.
-
-To remove only the desktop launcher:
-
-```bash
-make uninstall-desktop
+```sh
+git clone https://github.com/Vifuddyxg/creader
+cd creader
+gmake
+doas gmake install
 ```
 
-Manual desktop file, if needed:
+`make install` installs:
 
-```ini
-[Desktop Entry]
-Type=Application
-Name=creader
-Comment=PDF and comic reader
-Exec=/usr/local/bin/creader %f
-Terminal=false
-Categories=Office;Viewer;Graphics;
-MimeType=application/pdf;application/epub+zip;application/vnd.comicbook+zip;application/vnd.comicbook-rar;
-StartupNotify=true
+- `/usr/local/bin/creader`
+- `/usr/local/share/applications/creader.desktop`
+
+That makes `creader` available from the terminal and from application launchers
+such as `rofi -show drun`, `wofi --show drun`, or similar menus.
+
+Run without installing:
+
+```sh
+./creader
+./creader /path/to/book.pdf
 ```
 
-## Usage
+Run after installing:
 
-```bash
-creader                    # open library view
-creader book.pdf           # open a specific PDF
+```sh
+creader
+creader /path/to/book.pdf
 ```
 
-### Keyboard shortcuts
+## Reader Controls
 
-#### Reader
-| Key              | Action                          |
-|------------------|---------------------------------|
-| `→` / `PageDown` | Next page (or +2 in two-page)   |
-| `←` / `PageUp`   | Previous page                   |
-| `↑` / `↓`        | Scroll up / down                |
-| `+` / `=`        | Zoom in                         |
-| `-`              | Zoom out                        |
-| `0`              | Reset zoom to 100%              |
-| `r`              | Rotate page 90°                 |
-| `d`              | Toggle single / two-page mode   |
-| `f`              | Toggle fullscreen               |
-| `b`              | Open library                    |
-| `q`              | Quit                            |
+- Mouse wheel / `Up` / `Down`: smooth scroll
+- `Right` / `PageDown`: next page, or next spread in two-page mode
+- `Left` / `PageUp`: previous page, or previous spread in two-page mode
+- `+` / `=`: zoom in
+- `-`: zoom out
+- `0`: reset zoom to 100%
+- `r`: rotate page 90 degrees
+- `d`: toggle continuous single-page mode and two-page book mode
+- `f`: fullscreen on/off
+- `b`: open library
+- `q`: quit
 
-The reader also has a left sidebar for zoom and view mode, plus a right sidebar
-for page navigation and returning to the library.
+Mouse controls in reader mode:
 
-#### Library
-| Key        | Action                            |
-|------------|-----------------------------------|
-| `Enter`    | Open selected item                |
-| `Del`      | Remove from library (file kept)   |
-| `a`        | Add PDF (type path + Enter)       |
-| `d`        | Add folder by path or name        |
-| `/`        | Search by title or path           |
-| `← → ↑ ↓` | Navigate cards                    |
-| `b` / `Esc`| Back to reader                    |
-| `q`        | Quit                              |
+- Left sidebar slider: zoom
+- Left sidebar `Book` / `Single`: switch view mode
+- Right sidebar slider: jump through pages
+- Right sidebar `Lib`: return to library
 
-Double-click a card to open it directly.
+## Library Controls
 
-## Data storage
+- Double-click a card: open it
+- `Enter`: open selected item
+- `Delete`, `Backspace`, or `x`: remove selected item from the library only
+- `o`: add a file using the graphical picker
+- `f`: add a folder using the graphical picker
+- `a`: type a file path manually, then `Enter`
+- `d`: type a folder path/name manually, then `Enter`
+- `/`: search by title or path
+- Arrow keys: navigate cards
+- Mouse wheel: scroll library
+- Drag and drop a PDF/EPUB/CBZ/CBR or folder into the library window to import
+- `b` / `Esc`: return to reader when a document is open
+- `q`: quit
 
-Progress and library data are stored at:
+## Data Storage
 
-```
+Library and progress data are stored in:
+
+```text
 ~/.local/share/creader/library.dat
 ```
 
-Plain-text INI-like format, easy to inspect or backup.
+The file is plain text and can be backed up or edited carefully. Existing
+`~/.local/share/nvreader/library.dat` data is migrated on first run when found.
 
-On first run, creader migrates an existing
-`~/.local/share/nvreader/library.dat` file to the new location if needed.
+## Notes
 
-## Known Limitations
+- Continuous mode renders nearby pages lazily and uses a safer layout estimate
+  for large PDFs, so scrolling stays smooth without forcing every page to render.
+- Very large pages are skipped instead of allocating unsafe pixmaps/textures.
+- EPUB/CBZ/CBR support depends on how MuPDF was built by your distribution.
+- creader does not support annotations, forms, or document editing.
 
-- Linux only.
-- No annotations, forms, or editing support.
-- Continuous scrolling caches nearby pages, but very large or image-heavy PDFs
-  can still take CPU while new pages render.
-- EPUB/CBZ/CBR support depends on the local MuPDF build and installed libraries.
-- No packaged releases yet; build from source with `make`.
+## Project Structure
 
-## Project structure
-
-```
+```text
 creader/
 ├── src/
-│   ├── main.c       – entry point, main loop
-│   ├── state.c      – AppState init
-│   ├── pdf.c        – MuPDF wrapper
-│   ├── ui.c         – all SDL2 rendering
-│   ├── input.c      – event handling
-│   ├── library.c    – in-memory library management
-│   └── storage.c    – load/save library.dat
-├── include/         – header files
-├── assets/          – (reserved for future icons/fonts)
+│   ├── main.c       # entry point and main loop
+│   ├── state.c      # app state initialization
+│   ├── pdf.c        # MuPDF wrapper
+│   ├── ui.c         # SDL2 rendering
+│   ├── input.c      # keyboard, mouse, drag/drop handling
+│   ├── library.c    # in-memory library management
+│   ├── filepick.c   # file/folder picker integration
+│   └── storage.c    # load/save library.dat
+├── include/         # headers
+├── assets/          # reserved for future assets
 └── Makefile
 ```
